@@ -2,25 +2,16 @@ import { prisma } from '../../lib/db';
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req, res) {
-  // Safe helper to grab the Resume model regardless of lower/upper case
-  const ResumeModel = prisma.Resume || prisma.resume;
-
-  if (!ResumeModel) {
-    return res.status(500).json({ 
-      error: 'Prisma Resume model is not defined. Check your schema.prisma model name.' 
-    });
-  }
-
   if (req.method === 'GET') {
     try {
-      const history = await ResumeModel.findMany({
-        orderBy: { id: 'desc' },
+      const history = await prisma.resume.findMany({
+        orderBy: { createdAt: 'desc' },
         take: 10,
       });
       return res.status(200).json(history);
     } catch (error) {
       console.error('GET error:', error);
-      return res.status(500).json({ error: 'Failed to fetch history.' });
+      return res.status(500).json({ error: error.message || 'Failed to fetch history.' });
     }
   }
 
@@ -34,7 +25,7 @@ export default async function handler(req, res) {
 
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return res.status(500).json({ error: 'GEMINI_API_KEY is missing on Vercel Environment Variables.' });
+        return res.status(500).json({ error: 'GEMINI_API_KEY is not set on Vercel.' });
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -46,7 +37,8 @@ export default async function handler(req, res) {
 
       const roastContent = response.text;
 
-      const savedEntry = await ResumeModel.create({
+      // Save to Postgres via Prisma
+      const savedEntry = await prisma.resume.create({
         data: {
           content: resumeText,
           roast: roastContent,
@@ -55,8 +47,8 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ roast: roastContent, id: savedEntry.id });
     } catch (error) {
-      console.error('Gemini Execution Error:', error);
-      return res.status(500).json({ error: `Gemini Error: ${error.message || 'Failed to call API'}` });
+      console.error('API Error:', error);
+      return res.status(500).json({ error: error.message || 'Internal Server Error' });
     }
   }
 
@@ -65,10 +57,10 @@ export default async function handler(req, res) {
       const id = req.query.id || req.body?.id;
       if (!id) return res.status(400).json({ error: 'ID is required' });
 
-      await ResumeModel.delete({ where: { id: String(id) } });
+      await prisma.resume.delete({ where: { id: String(id) } });
       return res.status(200).json({ success: true });
     } catch (error) {
-      return res.status(500).json({ error: 'Failed to delete item.' });
+      return res.status(500).json({ error: error.message || 'Failed to delete item.' });
     }
   }
 
