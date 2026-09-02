@@ -1,22 +1,17 @@
-import db from '../../lib/db';
+import prisma from '../../lib/db';
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const client = db?.prisma || db?.default || db;
-      const ResumeModel = client?.resume || client?.Resume;
-
-      if (!ResumeModel) return res.status(200).json([]);
-
-      const history = await ResumeModel.findMany({
+      const history = await prisma.resume.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
       });
       return res.status(200).json(history);
     } catch (error) {
       console.error('GET error:', error);
-      return res.status(200).json([]);
+      return res.status(500).json({ error: 'Failed to fetch history.' });
     }
   }
 
@@ -61,26 +56,15 @@ export default async function handler(req, res) {
         throw new Error(lastError ? lastError.message : 'Gemini AI services are temporarily unavailable.');
       }
 
-      // Safe database persistence (non-blocking)
-      let savedId = null;
-      try {
-        const client = db?.prisma || db?.default || db;
-        const ResumeModel = client?.resume || client?.Resume;
+      // Save directly to Neon PostgreSQL
+      const savedEntry = await prisma.resume.create({
+        data: {
+          content: resumeText,
+          roast: roastContent,
+        },
+      });
 
-        if (ResumeModel && typeof ResumeModel.create === 'function') {
-          const savedEntry = await ResumeModel.create({
-            data: {
-              content: resumeText,
-              roast: roastContent,
-            },
-          });
-          savedId = savedEntry?.id || null;
-        }
-      } catch (dbError) {
-        console.error('Database Save Warning (Non-blocking):', dbError.message);
-      }
-
-      return res.status(200).json({ roast: roastContent, id: savedId });
+      return res.status(200).json({ roast: roastContent, id: savedEntry.id });
     } catch (error) {
       console.error('API Error:', error);
       return res.status(500).json({ error: error.message || 'Internal Server Error' });
@@ -92,12 +76,7 @@ export default async function handler(req, res) {
       const id = req.query.id || req.body?.id;
       if (!id) return res.status(400).json({ error: 'ID is required' });
 
-      const client = db?.prisma || db?.default || db;
-      const ResumeModel = client?.resume || client?.Resume;
-
-      if (ResumeModel && typeof ResumeModel.delete === 'function') {
-        await ResumeModel.delete({ where: { id: String(id) } });
-      }
+      await prisma.resume.delete({ where: { id: String(id) } });
       return res.status(200).json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: error.message || 'Failed to delete item.' });
