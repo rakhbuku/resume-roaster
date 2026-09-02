@@ -2,9 +2,18 @@ import { prisma } from '../../lib/db';
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req, res) {
+  // Safe helper to grab the Resume model regardless of lower/upper case
+  const ResumeModel = prisma.Resume || prisma.resume;
+
+  if (!ResumeModel) {
+    return res.status(500).json({ 
+      error: 'Prisma Resume model is not defined. Check your schema.prisma model name.' 
+    });
+  }
+
   if (req.method === 'GET') {
     try {
-      const history = await prisma.resume.findMany({
+      const history = await ResumeModel.findMany({
         orderBy: { id: 'desc' },
         take: 10,
       });
@@ -30,15 +39,14 @@ export default async function handler(req, res) {
 
       const ai = new GoogleGenAI({ apiKey });
 
-      // Updated model to gemini-3.6-flash
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`,
       });
 
       const roastContent = response.text;
 
-      const savedEntry = await prisma.resume.create({
+      const savedEntry = await ResumeModel.create({
         data: {
           content: resumeText,
           roast: roastContent,
@@ -57,7 +65,7 @@ export default async function handler(req, res) {
       const id = req.query.id || req.body?.id;
       if (!id) return res.status(400).json({ error: 'ID is required' });
 
-      await prisma.resume.delete({ where: { id: String(id) } });
+      await ResumeModel.delete({ where: { id: String(id) } });
       return res.status(200).json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: 'Failed to delete item.' });
