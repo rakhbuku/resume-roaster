@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [resumeText, setResumeText] = useState('');
-  const [roast, setRoast] = useState(''); // Initialized EMPTY so no mock text appears
+  const [roast, setRoast] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
 
@@ -23,7 +23,7 @@ export default function Home() {
   const handleRoast = async () => {
     if (!resumeText.trim()) return;
     setLoading(true);
-    setRoast('');
+    setRoast(''); // Reset state so old text disappears instantly
 
     try {
       const res = await fetch('/api/roast', {
@@ -35,13 +35,13 @@ export default function Home() {
       const data = await res.json();
 
       if (res.ok && data.roast) {
-        setRoast(data.roast);
+        setRoast(data.roast); // Displays the NEW dynamic roast
         fetchHistory();
       } else {
         setRoast(`Error: ${data.error || 'Failed to generate roast.'}`);
       }
     } catch (err) {
-      setRoast('An error occurred while connecting to the server.');
+      setRoast('Server error. Check Vercel logs.');
     } finally {
       setLoading(false);
     }
@@ -87,6 +87,7 @@ export default function Home() {
         {loading ? 'Roasting...' : 'Roast My Resume 🔥'}
       </button>
 
+      {/* Show Verdict only if roast exists */}
       {roast && (
         <div style={{ marginTop: '30px', padding: '20px', backgroundColor: '#f9f9f9', borderLeft: '4px solid #d9534f', borderRadius: '4px' }}>
           <h3>The Verdict:</h3>
@@ -96,7 +97,7 @@ export default function Home() {
 
       <hr style={{ margin: '40px 0' }} />
 
-      <h2>📜 Recent Database Roasts</h2>
+      <h2>📜 History</h2>
       {history.length === 0 ? (
         <p>No saved roasts in database yet.</p>
       ) : (
