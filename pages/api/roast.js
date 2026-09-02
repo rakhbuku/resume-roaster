@@ -1,10 +1,20 @@
-import { prisma } from '../../lib/db';
+import db from '../../lib/db';
 import { GoogleGenAI } from '@google/genai';
 
+// Flexible fallback to handle named or default exports from lib/db.js
+const prismaInstance = db?.prisma || db?.default || db;
+
 export default async function handler(req, res) {
+  if (!prismaInstance) {
+    return res.status(500).json({ error: 'Database instance failed to initialize.' });
+  }
+
+  // Safely grab the Resume model regardless of schema casing
+  const ResumeModel = prismaInstance.resume || prismaInstance.Resume;
+
   if (req.method === 'GET') {
     try {
-      const history = await prisma.resume.findMany({
+      const history = await ResumeModel.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
       });
@@ -32,7 +42,6 @@ export default async function handler(req, res) {
 
       const prompt = `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`;
 
-      // List of models to try in order if Google's servers return a 503 high demand error
       const candidateModels = ['gemini-3.6-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
       let roastContent = null;
       let lastError = null;
@@ -46,19 +55,19 @@ export default async function handler(req, res) {
 
           if (response && response.text) {
             roastContent = response.text;
-            break; // Success! Exit loop
+            break;
           }
         } catch (err) {
-          console.warn(`Model ${modelName} unavailable, trying fallback model...`, err.message);
+          console.warn(`Model ${modelName} failed, trying fallback...`, err.message);
           lastError = err;
         }
       }
 
       if (!roastContent) {
-        throw new Error(lastError ? lastError.message : 'Gemini services are temporarily overloaded. Please try again in a few seconds.');
+        throw new Error(lastError ? lastError.message : 'Gemini AI services are temporarily unavailable.');
       }
 
-      const savedEntry = await prisma.resume.create({
+      const savedEntry = await ResumeModel.create({
         data: {
           content: resumeText,
           roast: roastContent,
@@ -77,7 +86,7 @@ export default async function handler(req, res) {
       const id = req.query.id || req.body?.id;
       if (!id) return res.status(400).json({ error: 'ID is required' });
 
-      await prisma.resume.delete({ where: { id: String(id) } });
+      await ResumeModel.delete({ where: { id: String(id) } });
       return res.status(200).json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: error.message || 'Failed to delete item.' });
