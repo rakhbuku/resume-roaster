@@ -1,0 +1,31 @@
+import pdfParse from 'pdf-parse';
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { base64Pdf } = req.body;
+    if (!base64Pdf) {
+      return res.status(400).json({ error: 'Base64 PDF data is required.' });
+    }
+
+    const cleanBase64 = base64Pdf.replace(/^data:application\/pdf;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    const parsedData = await pdfParse(buffer);
+
+    return res.status(200).json({ text: parsedData.text });
+  } catch (error) {
+    console.error('PDF Parse Error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to parse PDF document.' });
+  }
+}
