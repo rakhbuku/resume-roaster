@@ -25,9 +25,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Resume content is required.' });
       }
 
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is missing on Vercel environment variables.' });
+      }
+
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their experience, formatting, or missing metrics constructively but with sharp humor.\n\nHere is the resume content:\n${resumeText}`,
+        model: 'gemini-1.5-flash',
+        contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`,
       });
 
       const roastContent = response.text;
@@ -41,8 +45,8 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ roast: roastContent, id: savedEntry.id });
     } catch (error) {
-      console.error('Gemini API Error:', error);
-      return res.status(500).json({ error: error.message || 'Failed to generate roast.' });
+      console.error('Gemini Execution Error:', error);
+      return res.status(500).json({ error: `Gemini Error: ${error.message || 'Failed to call Gemini API'}` });
     }
   }
 
@@ -54,8 +58,7 @@ export default async function handler(req, res) {
       await prisma.resume.delete({ where: { id: String(id) } });
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error('DELETE error:', error);
-      return res.status(500).json({ error: 'Failed to delete entry.' });
+      return res.status(500).json({ error: 'Failed to delete item.' });
     }
   }
 
