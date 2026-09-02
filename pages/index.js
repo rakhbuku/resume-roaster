@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [resumeText, setResumeText] = useState('');
-  const [roast, setRoast] = useState('');
+  const [roast, setRoast] = useState(''); // Initialized EMPTY so no mock text appears
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
 
@@ -34,14 +34,14 @@ export default function Home() {
 
       const data = await res.json();
 
-      if (data.roast) {
+      if (res.ok && data.roast) {
         setRoast(data.roast);
         fetchHistory();
       } else {
-        setRoast(data.error || 'An error occurred while roasting your resume.');
+        setRoast(`Error: ${data.error || 'Failed to generate roast.'}`);
       }
     } catch (err) {
-      setRoast('An error occurred while roasting your resume.');
+      setRoast('An error occurred while connecting to the server.');
     } finally {
       setLoading(false);
     }
