@@ -1,7 +1,5 @@
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../../lib/db';
 import { GoogleGenAI } from '@google/genai';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
@@ -25,11 +23,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Resume content is required.' });
       }
 
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: 'API Error: GEMINI_API_KEY is missing on Vercel environment variables.' });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY is missing on Vercel Environment Variables.' });
       }
 
-      // Call Gemini API
+      const ai = new GoogleGenAI({ apiKey });
+
       const response = await ai.models.generateContent({
         model: 'gemini-1.5-flash',
         contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`,
@@ -37,7 +37,6 @@ export default async function handler(req, res) {
 
       const roastContent = response.text;
 
-      // Save dynamic roast to Neon Database
       const savedEntry = await prisma.resume.create({
         data: {
           content: resumeText,
@@ -48,8 +47,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ roast: roastContent, id: savedEntry.id });
     } catch (error) {
       console.error('Gemini Execution Error:', error);
-      // NO FALLBACK STRING HERE — Returns the actual error message if Gemini fails
-      return res.status(500).json({ error: `API Error: ${error.message || 'Failed to generate live roast.'}` });
+      return res.status(500).json({ error: `Gemini Error: ${error.message || 'Failed to call API'}` });
     }
   }
 
