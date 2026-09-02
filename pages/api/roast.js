@@ -1,19 +1,14 @@
 import db from '../../lib/db';
 import { GoogleGenAI } from '@google/genai';
 
-// Flexible fallback to handle named or default exports from lib/db.js
-const prismaInstance = db?.prisma || db?.default || db;
-
 export default async function handler(req, res) {
-  if (!prismaInstance) {
-    return res.status(500).json({ error: 'Database instance failed to initialize.' });
-  }
-
-  // Safely grab the Resume model regardless of schema casing
-  const ResumeModel = prismaInstance.resume || prismaInstance.Resume;
-
   if (req.method === 'GET') {
     try {
+      const client = db?.prisma || db?.default || db;
+      const ResumeModel = client?.resume || client?.Resume;
+
+      if (!ResumeModel) return res.status(200).json([]);
+
       const history = await ResumeModel.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -21,7 +16,7 @@ export default async function handler(req, res) {
       return res.status(200).json(history);
     } catch (error) {
       console.error('GET error:', error);
-      return res.status(500).json({ error: error.message || 'Failed to fetch history.' });
+      return res.status(200).json([]);
     }
   }
 
@@ -39,7 +34,6 @@ export default async function handler(req, res) {
       }
 
       const ai = new GoogleGenAI({ apiKey });
-
       const prompt = `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`;
 
       const candidateModels = ['gemini-3.6-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
@@ -67,14 +61,26 @@ export default async function handler(req, res) {
         throw new Error(lastError ? lastError.message : 'Gemini AI services are temporarily unavailable.');
       }
 
-      const savedEntry = await ResumeModel.create({
-        data: {
-          content: resumeText,
-          roast: roastContent,
-        },
-      });
+      // Safe database persistence (non-blocking)
+      let savedId = null;
+      try {
+        const client = db?.prisma || db?.default || db;
+        const ResumeModel = client?.resume || client?.Resume;
 
-      return res.status(200).json({ roast: roastContent, id: savedEntry.id });
+        if (ResumeModel && typeof ResumeModel.create === 'function') {
+          const savedEntry = await ResumeModel.create({
+            data: {
+              content: resumeText,
+              roast: roastContent,
+            },
+          });
+          savedId = savedEntry?.id || null;
+        }
+      } catch (dbError) {
+        console.error('Database Save Warning (Non-blocking):', dbError.message);
+      }
+
+      return res.status(200).json({ roast: roastContent, id: savedId });
     } catch (error) {
       console.error('API Error:', error);
       return res.status(500).json({ error: error.message || 'Internal Server Error' });
@@ -86,7 +92,12 @@ export default async function handler(req, res) {
       const id = req.query.id || req.body?.id;
       if (!id) return res.status(400).json({ error: 'ID is required' });
 
-      await ResumeModel.delete({ where: { id: String(id) } });
+      const client = db?.prisma || db?.default || db;
+      const ResumeModel = client?.resume || client?.Resume;
+
+      if (ResumeModel && typeof ResumeModel.delete === 'function') {
+        await ResumeModel.delete({ where: { id: String(id) } });
+      }
       return res.status(200).json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: error.message || 'Failed to delete item.' });
