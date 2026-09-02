@@ -26,9 +26,10 @@ export default async function handler(req, res) {
       }
 
       if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: 'GEMINI_API_KEY is missing on Vercel environment variables.' });
+        return res.status(500).json({ error: 'API Error: GEMINI_API_KEY is missing on Vercel environment variables.' });
       }
 
+      // Call Gemini API
       const response = await ai.models.generateContent({
         model: 'gemini-1.5-flash',
         contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`,
@@ -36,6 +37,7 @@ export default async function handler(req, res) {
 
       const roastContent = response.text;
 
+      // Save dynamic roast to Neon Database
       const savedEntry = await prisma.resume.create({
         data: {
           content: resumeText,
@@ -46,7 +48,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ roast: roastContent, id: savedEntry.id });
     } catch (error) {
       console.error('Gemini Execution Error:', error);
-      return res.status(500).json({ error: `Gemini Error: ${error.message || 'Failed to call Gemini API'}` });
+      // NO FALLBACK STRING HERE — Returns the actual error message if Gemini fails
+      return res.status(500).json({ error: `API Error: ${error.message || 'Failed to generate live roast.'}` });
     }
   }
 
