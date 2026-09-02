@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../lib/prisma';
+import { GoogleGenAI } from '@google/genai';
 
-const prisma = new PrismaClient();
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export default async function handler(req, res) {
   // GET: Fetch history
@@ -17,27 +18,24 @@ export default async function handler(req, res) {
     }
   }
 
-  // POST: Create roast
+  // POST: Create roast with Google Gemini
   if (req.method === 'POST') {
     try {
       const { resumeText } = req.body;
 
-      if (!resumeText) {
-        return res.status(400).json({ error: 'Resume content is required' });
+      if (!resumeText || resumeText.trim().length === 0) {
+        return res.status(400).json({ error: 'Resume content is required.' });
       }
 
-      const roastContent = `🔥 **BRUTAL ROAST VERDICT** 🔥
+      // Call Gemini API
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their experience, formatting, or missing metrics constructively but with sharp humor.\n\nHere is the resume content:\n${resumeText}`,
+      });
 
-1. **Skills Section**: Listing 'VS Code' under technical skills? What's next, listing 'Computer Mouse' and 'Power Button'?
-2. **Experience**: "Worked on various tasks" and "Helped design components" sound like you were sitting in the room while other people actually built the app. Quantify your impact!
-3. **Projects**: Your weather app using OpenWeather API is the 'Hello World' of software engineering. Everyone and their cat has built one.
-4. **Summary**: "Hardworking and passionate developer" — this is boilerplate fluff. Show, don't tell!
+      const roastContent = response.text;
 
-💡 **Action Plan**:
-- Add real metrics (e.g., "Improved page load speeds by 25%").
-- Remove basic software tools from your skills list.
-- Highlight complex architectural decisions in your E-Commerce project.`;
-
+      // Save to Neon via Prisma
       const savedEntry = await prisma.resume.create({
         data: {
           content: resumeText,
@@ -47,12 +45,12 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ roast: roastContent, id: savedEntry.id });
     } catch (error) {
-      console.error('POST error:', error);
-      return res.status(500).json({ error: error.message || 'Failed to generate roast.' });
+      console.error('Gemini API Error:', error);
+      return res.status(500).json({ error: error.message || 'Failed to generate live roast.' });
     }
   }
 
-  // DELETE: Remove entry (handles CUID/UUID string IDs)
+  // DELETE: Remove entry
   if (req.method === 'DELETE') {
     try {
       const id = req.query.id || req.body?.id;
@@ -62,7 +60,7 @@ export default async function handler(req, res) {
       }
 
       await prisma.resume.delete({
-        where: { id: String(id) }, // Keeps ID as a string for cuid/uuid schema
+        where: { id: String(id) },
       });
 
       return res.status(200).json({ success: true });
