@@ -30,12 +30,33 @@ export default async function handler(req, res) {
 
       const ai = new GoogleGenAI({ apiKey });
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`,
-      });
+      const prompt = `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`;
 
-      const roastContent = response.text;
+      // List of models to try in order if Google's servers return a 503 high demand error
+      const candidateModels = ['gemini-3.6-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+      let roastContent = null;
+      let lastError = null;
+
+      for (const modelName of candidateModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+          });
+
+          if (response && response.text) {
+            roastContent = response.text;
+            break; // Success! Exit loop
+          }
+        } catch (err) {
+          console.warn(`Model ${modelName} unavailable, trying fallback model...`, err.message);
+          lastError = err;
+        }
+      }
+
+      if (!roastContent) {
+        throw new Error(lastError ? lastError.message : 'Gemini services are temporarily overloaded. Please try again in a few seconds.');
+      }
 
       const savedEntry = await prisma.resume.create({
         data: {
