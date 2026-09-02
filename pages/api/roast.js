@@ -25,14 +25,14 @@ export default async function handler(req, res) {
 
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return res.status(500).json({ error: 'GEMINI_API_KEY is not set in Vercel Environment Variables.' });
+        return res.status(500).json({ error: 'GEMINI_API_KEY is missing on Vercel Environment Variables.' });
       }
 
       const ai = new GoogleGenAI({ apiKey });
 
-      // Using gemini-2.5-flash for @google/genai v2.x
+      // Updated model to gemini-3.6-flash
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.6-flash',
         contents: `You are a humorous, brutally honest tech recruiter roasting a candidate's resume. Critique their specific skills and experience with sharp humor.\n\nResume:\n${resumeText}`,
       });
 
