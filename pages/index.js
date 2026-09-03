@@ -4,6 +4,7 @@ export default function Home() {
   const [resumeText, setResumeText] = useState('');
   const [roast, setRoast] = useState('');
   const [loading, setLoading] = useState(false);
+  const [parsingPdf, setParsingPdf] = useState(false);
   const [history, setHistory] = useState([]);
 
   const fetchHistory = async () => {
@@ -24,6 +25,7 @@ export default function Home() {
     const file = e.target.files[0];
     if (!file) return;
 
+    setParsingPdf(true);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -34,16 +36,24 @@ export default function Home() {
       });
 
       const data = await res.json();
-      if (data.text) {
+      if (res.ok && data.text) {
         setResumeText(data.text);
+      } else {
+        alert(`PDF Parsing Failed: ${data.error || 'Could not extract text.'}`);
       }
     } catch (err) {
       console.error('PDF upload error:', err);
+      alert('Error connecting to PDF parser endpoint.');
+    } finally {
+      setParsingPdf(false);
     }
   };
 
   const handleRoast = async () => {
-    if (!resumeText.trim()) return;
+    if (!resumeText.trim()) {
+      alert('Please paste resume text or wait for the PDF to parse before roasting.');
+      return;
+    }
     setLoading(true);
     setRoast('');
 
@@ -92,7 +102,9 @@ export default function Home() {
           type="file" 
           accept=".pdf" 
           onChange={handleFileUpload} 
+          disabled={parsingPdf}
         />
+        {parsingPdf && <span style={{ marginLeft: '10px', color: '#d9534f' }}>Extracting text...</span>}
       </div>
 
       <textarea
@@ -107,7 +119,7 @@ export default function Home() {
 
       <button
         onClick={handleRoast}
-        disabled={loading}
+        disabled={loading || parsingPdf}
         style={{
           backgroundColor: '#d9534f',
           color: '#fff',
@@ -115,10 +127,11 @@ export default function Home() {
           padding: '12px 24px',
           fontSize: '16px',
           borderRadius: '6px',
-          cursor: loading ? 'not-allowed' : 'pointer'
+          cursor: (loading || parsingPdf) ? 'not-allowed' : 'pointer',
+          opacity: (loading || parsingPdf) ? 0.7 : 1
         }}
       >
-        {loading ? 'Roasting...' : 'Roast My Resume 🔥'}
+        {loading ? 'Roasting...' : parsingPdf ? 'Parsing PDF...' : 'Roast My Resume 🔥'}
       </button>
 
       {roast && (
