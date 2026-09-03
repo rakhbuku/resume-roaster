@@ -20,10 +20,32 @@ export default function Home() {
     fetchHistory();
   }, []);
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/parse-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.text) {
+        setResumeText(data.text);
+      }
+    } catch (err) {
+      console.error('PDF upload error:', err);
+    }
+  };
+
   const handleRoast = async () => {
     if (!resumeText.trim()) return;
     setLoading(true);
-    setRoast(''); // Reset state so old text disappears instantly
+    setRoast('');
 
     try {
       const res = await fetch('/api/roast', {
@@ -35,7 +57,7 @@ export default function Home() {
       const data = await res.json();
 
       if (res.ok && data.roast) {
-        setRoast(data.roast); // Displays the NEW dynamic roast
+        setRoast(data.roast);
         fetchHistory();
       } else {
         setRoast(`Error: ${data.error || 'Failed to generate roast.'}`);
@@ -59,14 +81,26 @@ export default function Home() {
   return (
     <div style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
       <h1>🔥 Resume Roaster</h1>
-      <p>Paste your resume text below to get an honest AI critique.</p>
+      <p>Upload a PDF resume or paste your text below to get an honest AI critique.</p>
+
+      {/* PDF Upload Field */}
+      <div style={{ marginBottom: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>
+          Upload PDF Resume:
+        </label>
+        <input 
+          type="file" 
+          accept=".pdf" 
+          onChange={handleFileUpload} 
+        />
+      </div>
 
       <textarea
         rows={8}
         style={{ width: '100%', padding: '12px', fontSize: '14px', borderRadius: '6px', border: '1px solid #ccc' }}
         value={resumeText}
         onChange={(e) => setResumeText(e.target.value)}
-        placeholder="Paste resume here..."
+        placeholder="Paste resume here or upload a PDF above..."
       />
 
       <br /><br />
@@ -87,11 +121,10 @@ export default function Home() {
         {loading ? 'Roasting...' : 'Roast My Resume 🔥'}
       </button>
 
-      {/* Show Verdict only if roast exists */}
       {roast && (
         <div style={{ marginTop: '30px', padding: '20px', backgroundColor: '#f9f9f9', borderLeft: '4px solid #d9534f', borderRadius: '4px' }}>
           <h3>The Verdict:</h3>
-          <p style={{ whitespace: 'pre-wrap' }}>{roast}</p>
+          <p style={{ whiteSpace: 'pre-wrap' }}>{roast}</p>
         </div>
       )}
 
