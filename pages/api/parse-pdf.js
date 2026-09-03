@@ -1,5 +1,3 @@
-import pdfParse from 'pdf-parse/lib/pdf-parse.js';
-
 export const config = {
   api: {
     bodyParser: {
@@ -14,7 +12,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    const pdfParse = require('pdf-parse');
     const { fileData } = req.body || {};
+
     if (!fileData) {
       return res.status(400).json({ error: 'No file data provided' });
     }
