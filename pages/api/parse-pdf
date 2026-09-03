@@ -1,10 +1,10 @@
 import pdfParse from 'pdf-parse';
+import formidable from 'formidable';
+import fs from 'fs';
 
 export const config = {
   api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
+    bodyParser: false,
   },
 };
 
@@ -14,18 +14,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { base64Pdf } = req.body;
-    if (!base64Pdf) {
-      return res.status(400).json({ error: 'Base64 PDF data is required.' });
+    const form = formidable({});
+    const [fields, files] = await form.parse(req);
+    const file = files.file?.[0] || files.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
     }
 
-    const cleanBase64 = base64Pdf.replace(/^data:application\/pdf;base64,/, '');
-    const buffer = Buffer.from(cleanBase64, 'base64');
-    const parsedData = await pdfParse(buffer);
+    const dataBuffer = fs.readFileSync(file.filepath || file.path);
+    const parsed = await pdfParse(dataBuffer);
 
-    return res.status(200).json({ text: parsedData.text });
+    return res.status(200).json({ text: parsed.text });
   } catch (error) {
-    console.error('PDF Parse Error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to parse PDF document.' });
+    return res.status(500).json({ error: 'Failed to process PDF' });
   }
 }
