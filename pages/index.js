@@ -37,15 +37,20 @@ export default function Home() {
           body: JSON.stringify({ fileData: base64Data }),
         });
 
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch (err) {
+          throw new Error(`Server returned error code ${res.status}`);
+        }
+
         if (res.ok && data.text) {
           setResumeText(data.text);
         } else {
-          alert(`PDF Parsing Failed: ${data.error || 'Could not extract text.'}`);
+          alert(`PDF Parsing Error: ${data.error || 'Failed to extract text.'}`);
         }
       } catch (err) {
-        console.error('PDF upload error:', err);
-        alert('Error connecting to PDF parser endpoint.');
+        alert(err.message || 'Error connecting to PDF parser endpoint.');
       } finally {
         setParsingPdf(false);
       }
@@ -103,7 +108,6 @@ export default function Home() {
       <h1>🔥 Resume Roaster</h1>
       <p>Upload a PDF resume or paste your text below to get an honest AI critique.</p>
 
-      {/* PDF Upload Field */}
       <div style={{ marginBottom: '15px' }}>
         <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold' }}>
           Upload PDF Resume:
