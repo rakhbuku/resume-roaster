@@ -21,32 +21,42 @@ export default function Home() {
     fetchHistory();
   }, []);
 
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setParsingPdf(true);
-    const formData = new FormData();
-    formData.append('file', file);
+    const reader = new FileReader();
 
-    try {
-      const res = await fetch('/api/parse-pdf', {
-        method: 'POST',
-        body: formData,
-      });
+    reader.onload = async () => {
+      try {
+        const base64Data = reader.result.split(',')[1];
+        const res = await fetch('/api/parse-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileData: base64Data }),
+        });
 
-      const data = await res.json();
-      if (res.ok && data.text) {
-        setResumeText(data.text);
-      } else {
-        alert(`PDF Parsing Failed: ${data.error || 'Could not extract text.'}`);
+        const data = await res.json();
+        if (res.ok && data.text) {
+          setResumeText(data.text);
+        } else {
+          alert(`PDF Parsing Failed: ${data.error || 'Could not extract text.'}`);
+        }
+      } catch (err) {
+        console.error('PDF upload error:', err);
+        alert('Error connecting to PDF parser endpoint.');
+      } finally {
+        setParsingPdf(false);
       }
-    } catch (err) {
-      console.error('PDF upload error:', err);
-      alert('Error connecting to PDF parser endpoint.');
-    } finally {
+    };
+
+    reader.onerror = () => {
+      alert('Error reading file in browser.');
       setParsingPdf(false);
-    }
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleRoast = async () => {
