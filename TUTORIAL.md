@@ -1,4 +1,3 @@
-```markdown
 # 📖 Resume Roaster Architecture & Tutorial
 
 ## 🏗️ Architecture Overview
